@@ -1,91 +1,180 @@
-def _command_link(command: str) -> str:
-    return (
-        f"[{command}](mqqapi://aio/inlinecmd?command={command}&enter=false&reply=false)"
+from dataclasses import dataclass
+
+from .unknown_process import unknown_process
+from .utils import command_link
+
+
+def _help_link(command: str) -> str:
+    return command_link(f"/help {command}", "查看用法")
+
+
+@dataclass(frozen=True)
+class CommandHelp:
+    name: str
+    group: str
+    summary: str
+    arguments: str
+    detail: str
+
+    @property
+    def usage(self) -> str:
+        usage = command_link(f"/{self.name}")
+        if self.arguments == "":
+            return usage
+        return usage + f" `{self.arguments}`"
+
+
+COMMANDS = (
+    CommandHelp(
+        name="create",
+        group="准备游戏",
+        summary="创建游戏",
+        arguments="<玩家数> <每人谜底数>",
+        detail="""在当前群聊创建一局游戏，并获取此游戏的 ID。
+- 玩家数包含创建者。
+- 总谜底数最多为 50。
+- 一个群聊内不可以同时进行多个游戏。""",
+    ),
+    CommandHelp(
+        name="join",
+        group="准备游戏",
+        summary="加入游戏",
+        arguments="",
+        detail="""加入当前群聊中等待开始的游戏，并获取此游戏的 ID。
+- 游戏创建者会自动加入，无需手动执行此命令。""",
+    ),
+    CommandHelp(
+        name="post",
+        group="准备游戏",
+        summary="投稿谜底",
+        arguments="<游戏 ID> <谜底序号> <谜底内容>",
+        detail="""向指定游戏投稿谜底。
+- 谜底序号表示这是你投稿的第几个谜底。
+- 请在私聊或其他群聊使用，不可在该游戏所在群聊投稿。""",
+    ),
+    CommandHelp(
+        name="answers",
+        group="准备游戏",
+        summary="查看已投稿谜底",
+        arguments="<游戏 ID>",
+        detail="""查看你当前在指定游戏中投稿的谜底。
+- 请在私聊或其他群聊使用，不可在该游戏所在群聊查看。""",
+    ),
+    CommandHelp(
+        name="start",
+        group="准备游戏",
+        summary="开始游戏",
+        arguments="[force]",
+        detail="""开始当前游戏。
+- 加入 `force` 参数以强制开始游戏。""",
+    ),
+    CommandHelp(
+        name="open",
+        group="进行游戏",
+        summary="翻开字符",
+        arguments="<字符|number|other>",
+        detail="""翻开全部谜底中的一个或一类字符。
+- 使用 `number` 参数以翻开全部数字字符。
+- 使用 `other` 参数以翻开全部非字母、非数字字符。
+- 每次只能翻开一个或一类字符。""",
+    ),
+    CommandHelp(
+        name="results",
+        group="进行游戏",
+        summary="查看当前结果",
+        arguments="",
+        detail="查看当前谜底列表与已翻开的字符。",
+    ),
+    CommandHelp(
+        name="submit",
+        group="进行游戏",
+        summary="提交猜测",
+        arguments="<谜底序号> <猜测内容>",
+        detail="提交对指定谜底的猜测，并获取此猜测的 ID。",
+    ),
+    CommandHelp(
+        name="guesses",
+        group="进行游戏",
+        summary="查看待处理猜测",
+        arguments="",
+        detail="查看当前等待你判定的猜测列表。",
+    ),
+    CommandHelp(
+        name="judge",
+        group="进行游戏",
+        summary="判定猜测",
+        arguments="<猜测 ID> <1|0>",
+        detail="""判定他人对你的谜底提交的猜测。
+- `1`：猜测正确。
+- `0`：猜测错误。
+- 仅对应谜底的投稿人可使用。""",
+    ),
+    CommandHelp(
+        name="exit",
+        group="进行游戏",
+        summary="退出游戏",
+        arguments="",
+        detail="""退出游戏并公布你投稿的谜底。""",
+    ),
+    CommandHelp(
+        name="stop",
+        group="进行游戏",
+        summary="停止游戏",
+        arguments="",
+        detail="""停止当前游戏并公布所有谜底。""",
+    ),
+)
+
+COMMANDS_BY_NAME = {command.name: command for command in COMMANDS}
+
+HELP_MAIN_TEXT = (
+    """# 开你字母 Kainithm
+---
+## 游戏玩法
+1. 创建游戏，玩家加入；
+2. 在私聊或其他群聊投稿谜底；
+3. 开始游戏；
+4. 翻开字符并猜谜，由投稿人判定猜测是否正确；
+5. 所有谜底被猜中后，游戏结束。
+---
+## 命令列表
+输入 {help} `<命令>` 查看对应命令的参数和限制。
+{commands}
+---
+## 开发与反馈
+本项目使用 GPL-3.0 协议开源于 [GitHub](https://github.com/fstyou/nonebot-plugin-kainithm)。
+问题请反馈至 [GitHub Issue](https://github.com/fstyou/nonebot-plugin-kainithm/issues)"""
+    " 或 [qqbot@fstu.cc](mailto:qqbot@fstu.cc?subject=Kainithm%20Bot%20问题反馈)。"
+)
+
+
+def _command_list() -> str:
+    command_groups: dict[str, list[CommandHelp]] = {}
+    for command in COMMANDS:
+        command_groups.setdefault(command.group, []).append(command)
+    return "\n".join(
+        f"### {group}\n"
+        + "\n".join(
+            f"- {command_link(f'/{command.name}')} {command.summary}"
+            f" | {_help_link(command.name)}"
+            for command in commands
+        )
+        for group, commands in command_groups.items()
     )
 
 
-def help_process() -> str:
-    return help_text.format(
-        help=_command_link("/help"),
-        create=_command_link("/create"),
-        join=_command_link("/join"),
-        post=_command_link("/post"),
-        start=_command_link("/start"),
-        exit=_command_link("/exit"),
-        stop=_command_link("/stop"),
-        open=_command_link("/open"),
-        submit=_command_link("/submit"),
-        judge=_command_link("/judge"),
-    )
+def _command_detail(command: CommandHelp) -> str:
+    return f"# {command.usage}\n{command.detail}"
 
 
-help_text = """# 玩法
-1. 创建一局游戏；
-2. 邀请其他玩家加入你的游戏；
-3. 每名玩家通过私聊投稿谜底的内容；
-4. 开始游戏；
-5. 玩家可以翻开所有谜底中的某个字符，并根据已有线索猜测谜底的内容；
-6. 当有玩家提交对某个谜底的猜测时，由该谜底的投稿人判断其答案是否正确；
-7. 所有谜底都被猜中后，游戏结束。
-
-# 命令列表：
-## {help}
-- 获取此指令菜单。
-## {create} <玩家数> <谜底数>
-- 创建一局游戏并获取此游戏的 ID 和你的玩家 ID。
-- 需指定：
-    1. 此局游戏的玩家数（含游戏创建者）
-    2. 每名玩家提交的谜底数
-- 总谜底数最多 50 个。
-## {join}
-- 加入游戏并获取你的玩家 ID。
-- 游戏创建者会自动加入游戏，无需手动加入。
-## {post} <游戏 ID> <谜底序号> <谜底内容>
-- 投稿谜底。
-- 需指定：
-    1. 游戏 ID
-    2. 谜底的序号（即这是你投稿的第几个谜底）
-    3. 谜底的内容
-- **请不要在当前游戏所在的群聊使用此指令。**
-- 可以前往其他群聊或通过私聊使用此指令。
-## {start} ["force"]
-- 开始游戏。
-- 可指定：
-    - `force` 参数，用于无视警告强行开始游戏。
-- 仅游戏的创建者可使用。
-## {exit} [<玩家 ID>]
-- 退出游戏并公布你投稿的所有谜底。
-- 对于游戏创建者需指定：
-    - 玩家 ID，用于将对应玩家移出游戏并公布他投稿的所有谜底
-## {stop}
-- 停止游戏。
-- 如果游戏已经开始则公布所有谜底。
-- 仅游戏的创建者可使用。
-## {open} <字符|"number"|"other">
-- 翻开所有谜底中的某个字符。一次仅可翻开一个。
-- 需指定：
-    - 要翻开的字符
-    - 如果参数为 `number`，则翻开所有数字字符
-    - 如果参数为 `other`，则翻开所有除字母、数字外的其他字符
-## {submit} <谜底序号> <猜测内容>
-- 提交对谜底的猜测并获取该猜测的 ID。
-- 需指定：
-    1. 谜底的序号
-    2. 猜测的内容
-## {judge} <猜测 ID> <1|0>
-- 对猜测的正确与否进行判断。
-- 需指定：
-    1. 猜测 ID
-    2. 判断结果（1 代表正确，0 代表错误）
-- 仅对应谜底的投稿人可使用。
-
-# 参数说明：
-- `<参数>`：必填参数。
-- `[参数]`：可选参数。
-
-# 开发相关
-使用 [GPL-3.0](https://www.gnu.org/licenses/gpl-3.0.html) 协议开源。
-开发者：[枫上天游](https://github.com/fstyou)
-问题反馈：[qqbot@fstu.cc](mailto:qqbot@fstu.cc?subject=Kainithm%20Bot%20问题反馈)
-项目地址：[GitHub](https://github.com/fstyou/nonebot-plugin-kainithm)
-"""
+def help_process(topic: str = "") -> str:
+    topic = topic.strip().removeprefix("/").casefold()
+    if topic == "":
+        return HELP_MAIN_TEXT.format(
+            help=command_link("/help"),
+            commands=_command_list(),
+        )
+    command = COMMANDS_BY_NAME.get(topic)
+    if command is not None:
+        return _command_detail(command)
+    return unknown_process()
