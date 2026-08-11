@@ -4,10 +4,6 @@ from .unknown_process import unknown_process
 from .utils import command_link
 
 
-def _help_link(command: str) -> str:
-    return command_link(f"/help {command}", "查看用法")
-
-
 @dataclass(frozen=True)
 class CommandHelp:
     name: str
@@ -18,10 +14,9 @@ class CommandHelp:
 
     @property
     def usage(self) -> str:
-        usage = command_link(f"/{self.name}")
         if self.arguments == "":
-            return usage
-        return usage + f" `{self.arguments}`"
+            return f"{command_link(f'/{self.name}')}"
+        return command_link(f"/{self.name}", f"/{self.name} {self.arguments}")
 
 
 COMMANDS = (
@@ -29,19 +24,17 @@ COMMANDS = (
         name="create",
         group="准备游戏",
         summary="创建游戏",
-        arguments="<玩家数> <每人谜底数>",
+        arguments="",
         detail="""在当前群聊创建一局游戏，并获取此游戏的 ID。
-- 玩家数包含创建者。
-- 总谜底数最多为 50。
 - 一个群聊内不可以同时进行多个游戏。""",
     ),
     CommandHelp(
         name="join",
         group="准备游戏",
         summary="加入游戏",
-        arguments="",
-        detail="""加入当前群聊中等待开始的游戏，并获取此游戏的 ID。
-- 游戏创建者会自动加入，无需手动执行此命令。""",
+        arguments="<投稿谜底数>",
+        detail="""加入当前群聊中等待开始的游戏。
+- 一局游戏中的总谜底数最多为 50。""",
     ),
     CommandHelp(
         name="post",
@@ -72,7 +65,7 @@ COMMANDS = (
         name="open",
         group="进行游戏",
         summary="翻开字符",
-        arguments="<字符|number|other>",
+        arguments="<字符/number/other>",
         detail="""翻开全部谜底中的一个或一类字符。
 - 使用 `number` 参数以翻开全部数字字符。
 - 使用 `other` 参数以翻开全部非字母、非数字字符。
@@ -103,7 +96,7 @@ COMMANDS = (
         name="judge",
         group="进行游戏",
         summary="判定猜测",
-        arguments="<猜测 ID> <1|0>",
+        arguments="<猜测 ID> <1/0>",
         detail="""判定他人对你的谜底提交的猜测。
 - `1`：猜测正确。
 - `0`：猜测错误。
@@ -138,8 +131,14 @@ HELP_MAIN_TEXT = (
 5. 所有谜底被猜中后，游戏结束。
 ---
 ## 命令列表
-输入 {help} `<命令>` 查看对应命令的参数和限制。
+输入 {help} 查看对应命令的参数和限制。
 {commands}
+## 参数含义
+|参数|含义|
+|---|---|
+|`<参数>`|必填参数|
+|`[参数]`|可选参数|
+|`<参数1/参数2/…>`|从多种参数中取其一|
 ---
 ## 开发与反馈
 本项目使用 GPL-3.0 协议开源于 [GitHub](https://github.com/fstyou/nonebot-plugin-kainithm)。
@@ -153,10 +152,10 @@ def _command_list() -> str:
     for command in COMMANDS:
         command_groups.setdefault(command.group, []).append(command)
     return "\n".join(
-        f"### {group}\n"
+        f"### {group}\n|命令|功能|用法|\n|---|---|---|\n"
         + "\n".join(
-            f"- {command_link(f'/{command.name}')} {command.summary}"
-            f" | {_help_link(command.name)}"
+            f"|{command.usage}|{command.summary}"
+            f"|{command_link(f'/help {command.name}', '查看用法')}|"
             for command in commands
         )
         for group, commands in command_groups.items()
@@ -171,7 +170,7 @@ def help_process(topic: str = "") -> str:
     topic = topic.strip().removeprefix("/").casefold()
     if topic == "":
         return HELP_MAIN_TEXT.format(
-            help=command_link("/help"),
+            help=command_link("/help","/help <命令>"),
             commands=_command_list(),
         )
     command = COMMANDS_BY_NAME.get(topic)
